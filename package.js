@@ -1,7 +1,7 @@
 Package.describe({
   summary: "Reactive publish endpoints",
-  version: '0.5.0',
-  name: 'peerlibrary:reactive-publish',
+  version: '0.5.0-alpha.0',
+  name: 'fermuch:reactive-publish',
   git: 'https://github.com/peerlibrary/meteor-reactive-publish.git'
 });
 
@@ -13,7 +13,8 @@ Package.onUse(function (api) {
     'coffeescript',
     'underscore',
     'mongo',
-    'minimongo'
+    'minimongo',
+    'reactive-var'
   ], 'server');
 
   // 3rd party dependencies.
