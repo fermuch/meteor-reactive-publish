@@ -1,17 +1,18 @@
 Fiber = Npm.require 'fibers'
 
-checkNames = (publish, collectionNames, computation, result) ->
+getCollectionNames = (result) ->
   if result and _.isArray result
-    resultNames = (cursor._getCollectionName() for cursor in result when '_getCollectionName' of cursor)
-  else if result and '_getCollectionName' of result
+    resultNames = (cursor._getCollectionName() for cursor in result when _.isObject(cursor) and '_getCollectionName' of cursor)
+  else if result and _.isObject(result) and '_getCollectionName' of result
     resultNames = [result._getCollectionName()]
   else
     resultNames = []
 
-  collectionNames[computation._id] = resultNames if computation
+  resultNames
 
-  for computationId, names of collectionNames when not computation or computationId isnt "#{computation._id}"
-    for collectionName in names when collectionName in resultNames
+checkNames = (publish, allCollectionNames, id, collectionNames) ->
+  for computationId, names of allCollectionNames when computationId isnt id
+    for collectionName in names when collectionName in collectionNames
       publish.error new Error "Multiple cursors for collection '#{collectionName}'"
       return false
 
@@ -68,7 +69,7 @@ extendPublish (name, publishFunction, options) ->
     oldDocuments = {}
     documents = {}
 
-    collectionNames = {}
+    allCollectionNames = {}
 
     publish._currentComputation = ->
       if Tracker.active
@@ -167,7 +168,13 @@ extendPublish (name, publishFunction, options) ->
       handle = Tracker.autorun (computation) ->
         result = runFunc.call publish, computation
 
-        unless checkNames publish, collectionNames, computation, result
+        collectionNames = getCollectionNames result
+        allCollectionNames[computation._id] = collectionNames
+
+        computation.onInvalidate ->
+          delete allCollectionNames[computation._id]
+
+        unless checkNames publish, allCollectionNames, "#{computation._id}", collectionNames
           computation.stop()
           return
 
@@ -178,7 +185,7 @@ extendPublish (name, publishFunction, options) ->
           else
             handles.push result
         else
-          publishHandlerResult publish, result unless publish._isDeactivated()
+          publish._publishHandlerResult result unless publish._isDeactivated()
 
       handles.push handle
       handle
@@ -190,7 +197,9 @@ extendPublish (name, publishFunction, options) ->
 
     result = publishFunction.apply publish, args
 
-    return unless checkNames publish, collectionNames, null, result
+    collectionNames = getCollectionNames result
+    allCollectionNames[''] = collectionNames
+    return unless checkNames publish, allCollectionNames, '', collectionNames
 
     # Specially handle if computation has been returned.
     if result instanceof Tracker.Computation
